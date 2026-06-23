@@ -16,11 +16,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 POSTHOOKS_DIR="$HOME/.local/bin/posthooks"
-TEMPLATES_DIR="$HOME/.config/caelestia/templates"
 
 # --- Check for existing installation ---
 chmod +x "$PROJECT_ROOT/scripts/uninstall.sh"
-if [[ -e "$TEMPLATES_DIR/minecraft" ]]; then
+if [[ -d "$POSTHOOKS_DIR/minecraft" ]]; then
     echo ""
     echo "============================================================"
     echo "                    CLEAN UP / UPDATE"
@@ -76,9 +75,7 @@ else
 fi
 
 mkdir -p "$POSTHOOKS_DIR/minecraft/RP"
-mkdir -p "$TEMPLATES_DIR"
 cp -r "$PROJECT_ROOT/posthook"/* "$POSTHOOKS_DIR/"
-cp -r "$PROJECT_ROOT/template"/* "$TEMPLATES_DIR"
 
 # ------------------------
 

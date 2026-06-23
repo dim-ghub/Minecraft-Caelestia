@@ -1,9 +1,0 @@
-#{{ primaryFixedDim.hex }}
-#{{ secondaryFixedDim.hex }}
-#{{ secondaryFixed.hex }}
-#{{ tertiaryFixedDim.hex }}
-#{{ tertiaryFixed.hex }}
-#{{ surfaceVariant.hex }}
-#{{ surface.hex }}
-#{{ primaryContainer.hex }}
-#{{ surface.hex }}

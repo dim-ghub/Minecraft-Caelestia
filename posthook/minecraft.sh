@@ -1,7 +1,6 @@
 #!/bin/bash
 
 INPUT_DIR="$HOME/.local/bin/posthooks/minecraft/RP"
-HIGHLIGHT_FILE="$HOME/.local/state/caelestia/theme/minecraft"
 MC_DIRS_CONF="$HOME/.local/bin/posthooks/minecraft/mcdirs.conf"
 PY_SCRIPT="$HOME/.local/bin/posthooks/minecraft/recolor.py"
 
@@ -46,12 +45,35 @@ if [[ $ADD_DIRS -eq 1 ]]; then
     [[ "$confirm" =~ ^[Yy]$ ]] || exit 0
 fi
 
-mapfile -t REPLACEMENT_COLORS < <(
-    sed 's/^[[:space:]]*//;s/[[:space:]]*$//' "$HIGHLIGHT_FILE" | \
-    grep -E '^#?[0-9a-fA-F]{6}$' | \
-    head -n ${#USED_COLORS[@]}
+SCHEME_OUTPUT=$(caelestia scheme get 2>/dev/null)
+if [[ -z "$SCHEME_OUTPUT" ]]; then
+    echo "Failed to get scheme from caelestia!"
+    exit 1
+fi
+
+get_color() {
+    local color_name="$1"
+    echo "$SCHEME_OUTPUT" | grep -E "^[[:space:]]+$color_name:" | awk '{print "#" $2}'
+}
+
+REPLACEMENT_COLORS=(
+    "$(get_color primaryFixedDim)"
+    "$(get_color secondaryFixedDim)"
+    "$(get_color secondaryFixed)"
+    "$(get_color tertiaryFixedDim)"
+    "$(get_color tertiaryFixed)"
+    "$(get_color surfaceVariant)"
+    "$(get_color surface)"
+    "$(get_color primaryContainer)"
+    "$(get_color surface)"
 )
-[[ ${#REPLACEMENT_COLORS[@]} -eq 0 ]] && echo "No replacement colors!" && exit 1
+
+for color in "${REPLACEMENT_COLORS[@]}"; do
+    if [[ -z "$color" || "$color" == "#" ]]; then
+        echo "Missing replacement colors!"
+        exit 1
+    fi
+done
 
 mapfile -t OUTPUT_DIRS < <(
     grep -v '^[[:space:]]*$' "$MC_DIRS_CONF" | sed 's|~|'"$HOME"'|' | sed 's|/*$||' | awk '{ print $0 "/caelestia" }'
