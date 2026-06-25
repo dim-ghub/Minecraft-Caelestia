@@ -111,6 +111,26 @@ if [[ -f "$MC_DIRS_CONF" ]]; then
     done < "$MC_DIRS_CONF"
 fi
 
+# Update acrylic.ini background color for each tracked instance
+SURFACE_HEX=$(get_color surface | sed 's/^#//')
+if [[ -n "$SURFACE_HEX" ]]; then
+    SURFACE_DEC=$(printf "%d" "0x$SURFACE_HEX")
+    log "Surface color: #$SURFACE_HEX -> decimal $SURFACE_DEC"
+
+    if [[ -f "$MC_DIRS_CONF" ]]; then
+        while IFS= read -r dir; do
+            [[ -z "$dir" || "$dir" =~ ^[[:space:]]*$ ]] && continue
+            clean="${dir/#\~/$HOME}"
+            clean="${clean%/}"
+            INI_FILE="$(dirname "$clean")/config/acrylic.ini"
+            if [[ -f "$INI_FILE" ]]; then
+                sed -i "s/^background_color_rgb=.*/background_color_rgb=$SURFACE_DEC/" "$INI_FILE"
+                log "Updated $INI_FILE"
+            fi
+        done < "$MC_DIRS_CONF"
+    fi
+fi
+
 # Auto-reload Minecraft textures if it's the focused window
 FOCUSED_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address' 2>/dev/null || echo "")
 IS_MINECRAFT=$(hyprctl clients -j 2>/dev/null | jq -r --arg addr "$FOCUSED_ADDR" '.[] | select(.address == $addr) | select(.title | test("^Minecraft"; "i")) | .address' 2>/dev/null)
