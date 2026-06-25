@@ -148,25 +148,32 @@ POSTHOOK_CMD="$POSTHOOKS_DIR/minecraft.sh"
 
 mkdir -p "$CONFIG_DIR"
 
-if [[ -f "$CLI_JSON" ]]; then
-    EXISTING_HOOK=$(jq -r '.wallpaper.postHook // empty' "$CLI_JSON" 2>/dev/null)
-
-    if [[ -n "$EXISTING_HOOK" ]]; then
-        if [[ "$EXISTING_HOOK" == *"$POSTHOOK_CMD"* ]]; then
-            echo "✓ Posthook already configured in cli.json"
-        else
-            NEW_HOOK="${EXISTING_HOOK} && ${POSTHOOK_CMD}"
-            jq --arg hook "$NEW_HOOK" '.wallpaper.postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
-            echo "✓ Added minecraft posthook to wallpaper.postHook in cli.json"
-        fi
-    else
-        jq --arg hook "$POSTHOOK_CMD" '.wallpaper.postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
-        echo "✓ Created wallpaper.postHook in cli.json"
-    fi
-else
+if [[ ! -f "$CLI_JSON" ]]; then
     echo "ERROR: cli.json not found at $CLI_JSON" >&2
     exit 1
 fi
+
+append_posthook() {
+    local key="$1"
+    local existing
+    existing=$(jq -r --arg k "$key" '.[$k].postHook // empty' "$CLI_JSON" 2>/dev/null)
+
+    if [[ -n "$existing" ]]; then
+        if [[ "$existing" == *"$POSTHOOK_CMD"* ]]; then
+            echo "✓ Posthook already configured in $key.postHook"
+        else
+            NEW_HOOK="${existing} && ${POSTHOOK_CMD}"
+            jq --arg key "$key" --arg hook "$NEW_HOOK" '.[$key].postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
+            echo "✓ Added minecraft posthook to $key.postHook"
+        fi
+    else
+        jq --arg key "$key" --arg hook "$POSTHOOK_CMD" '.[$key].postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
+        echo "✓ Created $key.postHook"
+    fi
+}
+
+append_posthook "wallpaper"
+append_posthook "theme"
 
 echo ""
 echo "============================================================"
