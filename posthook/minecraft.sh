@@ -3,6 +3,7 @@
 INPUT_DIR="$HOME/.local/bin/posthooks/minecraft/RP"
 MC_DIRS_CONF="$HOME/.local/bin/posthooks/minecraft/mcdirs.conf"
 PY_SCRIPT="$HOME/.local/bin/posthooks/minecraft/recolor.py"
+THEME_DIR="$HOME/.local/state/caelestia/theme"
 
 USED_COLORS=(
     "#9399b2" "#7f849c" "#6c7086" "#585b70"
@@ -11,12 +12,10 @@ USED_COLORS=(
 )
 
 VERBOSE=0
-ADD_DIRS=0
 
 for arg in "$@"; do
     case "$arg" in
         -v|--verbose) VERBOSE=1 ;;
-        -a|--add) ADD_DIRS=1 ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
     esac
 done
@@ -24,26 +23,6 @@ done
 log() {
     [[ $VERBOSE -eq 1 ]] && echo "$@"
 }
-
-if [[ $ADD_DIRS -eq 1 ]]; then
-    echo "Add output directories (type 'done' when finished):"
-    while true; do
-        read -rp "Directory path: " newdir
-        [[ "$newdir" == "done" ]] && break
-        [[ -z "$newdir" ]] && continue
-        clean_path="${newdir/#\~/$HOME}"
-        clean_path="${clean_path%/}"
-        if grep -Fxq "$clean_path" "$MC_DIRS_CONF"; then
-            echo "Already in config: $clean_path"
-        else
-            echo "$clean_path" >> "$MC_DIRS_CONF"
-            echo "Added: $clean_path"
-        fi
-    done
-    read -rp "Run the recolor script now? [Y/n] " confirm
-    confirm="${confirm:-Y}"
-    [[ "$confirm" =~ ^[Yy]$ ]] || exit 0
-fi
 
 SCHEME_OUTPUT=$(caelestia scheme get 2>/dev/null)
 if [[ -z "$SCHEME_OUTPUT" ]]; then
@@ -53,7 +32,7 @@ fi
 
 get_color() {
     local color_name="$1"
-    echo "$SCHEME_OUTPUT" | grep -E "^[[:space:]]+$color_name:" | awk '{print "#" $2}'
+    echo "$SCHEME_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g' | grep -E "^[[:space:]]+$color_name:" | awk '{print "#" $2}'
 }
 
 REPLACEMENT_COLORS=(
@@ -75,43 +54,34 @@ for color in "${REPLACEMENT_COLORS[@]}"; do
     fi
 done
 
-mapfile -t OUTPUT_DIRS < <(
-    grep -v '^[[:space:]]*$' "$MC_DIRS_CONF" | sed 's|~|'"$HOME"'|' | sed 's|/*$||' | awk '{ print $0 "/caelestia" }'
-)
-[[ ${#OUTPUT_DIRS[@]} -eq 0 ]] && echo "No output directories configured!" && exit 1
-
-SOURCE_DIR="$HOME/.local/bin/posthooks/minecraft"
+mkdir -p "$THEME_DIR"
 
 log "Syncing non-image files..."
-for out in "${OUTPUT_DIRS[@]}"; do
-    mkdir -p "$out"
-    cp "$SOURCE_DIR/pack.png" "$SOURCE_DIR/pack.mcmeta" "$out/" 2>/dev/null || true
-    rsync -a --exclude='*.png' --exclude='*.jpg' --exclude='*.jpeg' "$INPUT_DIR/" "$out/"
-done
+cp "$INPUT_DIR/pack.png" "$INPUT_DIR/pack.mcmeta" "$THEME_DIR/" 2>/dev/null || true
+rsync -a --exclude='*.png' --exclude='*.jpg' --exclude='*.jpeg' "$INPUT_DIR/" "$THEME_DIR/"
 
 log "Queueing image jobs..."
-BASE_PALETTE_JSON="[$(printf '"%s",' "${USED_COLORS[@]}" | sed 's/,$//')]"
-TARGET_PALETTE_JSON="[$(printf '"%s",' "${REPLACEMENT_COLORS[@]}" | sed 's/,$//')]"
+BASE_PALETTE_JSON=$(printf '%s\n' "${USED_COLORS[@]}" | jq -R . | jq -s .)
+TARGET_PALETTE_JSON=$(printf '%s\n' "${REPLACEMENT_COLORS[@]}" | jq -R . | jq -s .)
 
 jobfile=$(mktemp)
-echo "[" > "$jobfile"
-sep=""
-
 recolor_count=0
 
 while IFS= read -r -d '' file; do
     rel_path="${file#$INPUT_DIR/}"
+    out_path="$THEME_DIR/$rel_path"
 
-    for out in "${OUTPUT_DIRS[@]}"; do
-        out_path="$out/$rel_path"
-
-        echo "${sep}{\"img_path\": \"$file\", \"out_path\": \"$out_path\", \"base_palette\": $BASE_PALETTE_JSON, \"target_palette\": $TARGET_PALETTE_JSON}" >> "$jobfile"
-        sep=","
-        ((recolor_count++))
-    done
+    jq -cn \
+        --arg img "$file" \
+        --arg out "$out_path" \
+        --argjson base "$BASE_PALETTE_JSON" \
+        --argjson target "$TARGET_PALETTE_JSON" \
+        '{img_path: $img, out_path: $out, base_palette: $base, target_palette: $target}' >> "$jobfile"
+    ((recolor_count++))
 done < <(find "$INPUT_DIR" -type f -iregex '.*\.\(png\|jpe?g\)' -not -name 'pack.png' -print0)
 
-echo "]" >> "$jobfile"
+# Convert newline-delimited JSON objects to a JSON array
+jq -s '.' "$jobfile" > "${jobfile}.tmp" && mv "${jobfile}.tmp" "$jobfile"
 
 if [[ $recolor_count -eq 0 ]]; then
     echo "No images found to recolor."
@@ -125,33 +95,40 @@ python3 "$PY_SCRIPT" < "$jobfile"
 echo "Done. $recolor_count image(s) recolored."
 rm -f "$jobfile"
 
-PREV_FOCUSED=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address' 2>/dev/null || echo "")
+# Sync theme to tracked resource pack directories
+if [[ -f "$MC_DIRS_CONF" ]]; then
+    log "Syncing to resource pack directories..."
+    while IFS= read -r dir; do
+        [[ -z "$dir" || "$dir" =~ ^[[:space:]]*$ ]] && continue
+        clean="${dir/#\~/$HOME}"
+        clean="${clean%/}"
+        if [[ -d "$clean" ]]; then
+            target="$clean/caelestia"
+            mkdir -p "$target"
+            rsync -a --delete "$THEME_DIR/" "$target/"
+            log "Synced to $target"
+        fi
+    done < "$MC_DIRS_CONF"
+fi
 
-MINECRAFT_ADDR=$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class | test("Minecraft"; "i")) | .address' 2>/dev/null | head -1)
-DID_FOCUS=0
+# Auto-reload Minecraft textures if it's the focused window
+FOCUSED_ADDR=$(hyprctl activewindow -j 2>/dev/null | jq -r '.address' 2>/dev/null || echo "")
+IS_MINECRAFT=$(hyprctl clients -j 2>/dev/null | jq -r --arg addr "$FOCUSED_ADDR" '.[] | select(.address == $addr) | select(.title | test("^Minecraft"; "i")) | .address' 2>/dev/null)
 
-if [[ -n "$MINECRAFT_ADDR" ]]; then
+if [[ -n "$IS_MINECRAFT" ]]; then
     if pgrep -x ydotoold > /dev/null; then
         YDOTOLD_WAS_RUNNING=1
     else
         YDOTOLD_WAS_RUNNING=0
         ydotoold &
-        sleep 0.5
+        sleep 1
     fi
-
-    hyprctl dispatch focuswindow "address:$MINECRAFT_ADDR"
-    DID_FOCUS=1
-    sleep 0.2
 
     ydotool key 61:1 20:1 20:0 61:0
 
-    sleep 0.3
+    sleep 0.5
 
     if [[ $YDOTOLD_WAS_RUNNING -eq 0 ]]; then
         pkill ydotoold
     fi
-fi
-
-if [[ $DID_FOCUS -eq 1 && -n "$PREV_FOCUSED" ]]; then
-    hyprctl dispatch focuswindow "address:$PREV_FOCUSED"
 fi

@@ -2,7 +2,7 @@
 
 This script generates a customized Minecraft resource pack by recoloring textures using Caelestia.
 
-It works with multiple Minecraft instances and outputs the processed files to a `caelestia` folder inside each configured resource pack directory.
+It automatically downloads the Catppuccin resource pack from Modrinth and recolors it to match your current Caelestia color scheme.
 
 ---
 
@@ -10,21 +10,12 @@ It works with multiple Minecraft instances and outputs the processed files to a 
 
 Clone this repo.
 
-Download the Catppuccin Mocha Blue Minecraft resource pack corresponding to your Minecraft version.
-
-Get it here: https://github.com/catppuccin/minecraft
-
 Run `scripts/install.sh` and follow the instructions.
 
-**Note:** On the first run, the script builds a color lookup table (~15-30s). Subsequent runs are nearly instant since it caches the table.
-
-If you want the script to be ran every time you change wallpapers:
-
-Edit `~/.config/caelestia/cli.json` and change the postHook to execute `~/.local/bin/posthooks/minecraft.sh`
-
-If the cli.json does not exist, please copy and paste in the example configuration from here:
-
-https://github.com/caelestia-dots/cli
+The installer will:
+1. Download your chosen Catppuccin flavor and accent color from Modrinth
+2. Set up the posthook scripts
+3. Configure `~/.config/caelestia/cli.json` to run automatically on wallpaper changes
 
 ---
 
@@ -37,69 +28,72 @@ https://github.com/caelestia-dots/cli
 - ydotool
 - jq
 - hyprctl
+- curl
+- unzip
 
 ---
 
 ## How It Works
 
-1. **Setup**
-   - Uses the catppuccin Minecraft resource pack as a base
-   - Reads colors from `minecraft`, trims whitespace, validates hex format, and limits to the size of the base palette
+1. **Color Scheme**
+   - Gets colors directly from `caelestia scheme get`
+   - Maps Catppuccin palette colors to your current Caelestia theme colors
 
-2. **Output Directory Handling**
-   - Reads output base paths from `mcdirs.conf`
-   - Expands `~` and adds `/caelestia` (unless it’s already included)
+2. **Recolored Pack**
+   - Generated resource pack is saved to `~/.local/state/caelestia/theme/`
+   - Symlinks are created from Minecraft resource pack directories to this location
 
 3. **File Processing**
-   - Recursively scans the input directory
-   - If the file is `pack.png`, it’s copied directly
-   - If the file is a `.png` or `.jpg`, it is processed with Python:
-     - Opens the image with Pillow
-     - Converts to RGBA
-     - For each non-transparent pixel:
-       - Finds the closest base palette color
-       - Replaces it with the corresponding Caelestia color (alpha preserved)
-     - Saves the modified image in the corresponding output path
+   - Recursively scans the source resource pack
+   - Image files (`.png`, `.jpg`) are recolored using a lookup table
    - Non-image files are copied unchanged
+   - The LUT is cached for instant subsequent runs
 
 4. **Verbose Mode**
    - If run with `-v`, logs every action to the terminal
-
-5. **Add Mode**
-   - If run with `-a`, will prompt you to enter new resource pack directories
-   - Accepts multiple entries until the you enter `done`
-   - Prompts you to immediately run the script (defaults to "yes")
 
 ---
 
 ## Usage
 
-### Basic:
+### Add resource pack directories:
+
+```bash
+scripts/add-output-dir.sh ~/.minecraft/resourcepacks
+scripts/add-output-dir.sh ~/instances/forge/resourcepacks ~/instances/fabric/resourcepacks
+```
+
+### Manual recolor:
 
 ```bash
 ~/.local/bin/posthooks/minecraft.sh
 ```
 
-### Verbose Logging:
+### Verbose logging:
 
 ```bash
 ~/.local/bin/posthooks/minecraft.sh -v
 ```
 
-### Add Paths:
+### Uninstall:
 
 ```bash
-~/.local/bin/posthooks/minecraft.sh -a
+scripts/uninstall.sh
 ```
-or
-`scripts/add-output-dir.sh`
 
-### Set source resource pack:
+---
 
-`scripts/set-rp.sh`
+## File Structure
 
-### Uninstall everything:
+```
+~/.local/bin/posthooks/
+├── minecraft.sh                    # Main posthook script
+└── minecraft/
+    ├── recolor.py                  # Python recoloring engine
+    ├── lut.npy                     # Cached lookup table (generated at runtime)
+    └── RP/                         # Source resource pack (Catppuccin)
 
-`scripts/uninstall.sh`
+~/.local/state/caelestia/theme/    # Recolored resource pack
 
-**Note:** The resource packs will still be in the Minecraft instances but won't update anymore!
+~/.config/caelestia/cli.json       # Caelestia CLI config (posthook auto-configured)
+```

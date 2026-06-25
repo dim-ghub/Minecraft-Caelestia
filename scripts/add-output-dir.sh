@@ -1,31 +1,36 @@
 #!/bin/bash
 
-# Prevent running with sudo
-if [ "$(id -u)" -eq 0 ]; then
-    echo "ERROR: Do not run this script with sudo. Run it normally." >&2
+if [ $# -eq 0 ]; then
+    echo "usage: $(basename "$(realpath "$0")") <dir> [dir...]" >&2
     exit 1
 fi
 
-if [ $# -ne 0 ]; then
-    echo "usage: $(basename "$(realpath "$0")")" >&2
+THEME_DIR="$HOME/.local/state/caelestia/theme"
+MC_DIRS_CONF="$HOME/.local/bin/posthooks/minecraft/mcdirs.conf"
+
+if [[ ! -d "$THEME_DIR" ]]; then
+    echo "Theme not installed. Run install.sh first." >&2
     exit 1
 fi
 
-POSTHOOKS_DIR="$HOME/.local/bin/posthooks"
+for dir in "$@"; do
+    clean_path="${dir/#\~/$HOME}"
+    clean_path="${clean_path%/}"
 
-# --- Check for existing installation ---
-if ! [ -f "$POSTHOOKS_DIR/minecraft.sh" ]; then
-    read -p "Theme not installed. Install now? [Y/n]: " install_now
-    if [[ -z "$install_now" ]] || [[ "$install_now" =~ ^[Yy]$ ]]; then
-        SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-        PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-        chmod +x "$PROJECT_ROOT/scripts/install.sh"
-        "$PROJECT_ROOT/scripts/install.sh"
-        exit 0
+    if [[ ! -d "$clean_path" ]]; then
+        echo "Directory does not exist: $clean_path" >&2
+        continue
     fi
-fi
-# ------------------------
 
-"$POSTHOOKS_DIR/minecraft.sh" -a
+    if grep -Fxq "$clean_path" "$MC_DIRS_CONF" 2>/dev/null; then
+        echo "Already tracked: $clean_path"
+    else
+        echo "$clean_path" >> "$MC_DIRS_CONF"
+        echo "Added: $clean_path"
+    fi
 
-echo "You can remove an output directory at any time by modifying ~/.local/bin/posthooks/minecraft/mcdirs.conf!"
+    target="$clean_path/caelestia"
+    mkdir -p "$target"
+    rsync -a --delete "$THEME_DIR/" "$target/"
+    echo "Copied theme to $target"
+done

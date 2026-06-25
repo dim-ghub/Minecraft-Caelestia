@@ -16,6 +16,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 POSTHOOKS_DIR="$HOME/.local/bin/posthooks"
+THEME_DIR="$HOME/.local/state/caelestia/theme"
+CONFIG_DIR="$HOME/.config/caelestia"
+CLI_JSON="$CONFIG_DIR/cli.json"
 
 # --- Check for existing installation ---
 chmod +x "$PROJECT_ROOT/scripts/uninstall.sh"
@@ -42,7 +45,9 @@ DEPENDENCIES=(
     "python3"
     "ydotool"
     "jq"
-    "hyprland"
+    "hyprctl"
+    "curl"
+    "unzip"
 )
 
 PYTHON_DEPS=(
@@ -74,23 +79,102 @@ else
     echo "✓ All dependencies met."
 fi
 
+# Create directories
 mkdir -p "$POSTHOOKS_DIR/minecraft/RP"
+mkdir -p "$THEME_DIR"
+
+# Copy posthook scripts
 cp -r "$PROJECT_ROOT/posthook"/* "$POSTHOOKS_DIR/"
 
-# ------------------------
+# Download Catppuccin Mocha Blue from Modrinth
+echo ""
+echo "============================================================"
+echo "                       SETUP"
+echo "============================================================"
 
-# ------------------------
+FILENAME="Catppuccin Mocha Blue.zip"
+echo ""
+echo "Downloading ${FILENAME} from Modrinth..."
+
+API_RESPONSE=$(curl -s "https://api.modrinth.com/v2/project/catppuccin-ui/version?loaders=%5B%22minecraft%22%5D" 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$API_RESPONSE" ]; then
+    echo "Failed to fetch version info from Modrinth!" >&2
+    exit 1
+fi
+
+VERSION_ID=$(echo "$API_RESPONSE" | jq -r '.[] | select(.name | startswith("Catppuccin Mocha")) | .id' 2>/dev/null | head -1)
+if [ -z "$VERSION_ID" ]; then
+    echo "Could not find Mocha version!" >&2
+    exit 1
+fi
+
+DOWNLOAD_URL=$(echo "$API_RESPONSE" | jq -r --arg vid "$VERSION_ID" --arg fname "$FILENAME" '.[] | select(.id == $vid) | .files[] | select(.filename == $fname) | .url' 2>/dev/null)
+if [ -z "$DOWNLOAD_URL" ]; then
+    echo "Could not find download URL for ${FILENAME}!" >&2
+    exit 1
+fi
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+curl -L -o "$TMPDIR/pack.zip" "$DOWNLOAD_URL" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Failed to download resource pack!" >&2
+    exit 1
+fi
+
+rm -rf "$POSTHOOKS_DIR/minecraft/RP/"*
+unzip -q "$TMPDIR/pack.zip" -d "$POSTHOOKS_DIR/minecraft/RP"
+if [ $? -ne 0 ]; then
+    echo "Failed to extract resource pack!" >&2
+    exit 1
+fi
+
+echo "✓ Downloaded and extracted ${FILENAME}"
+
+# Reload wallpaper to generate scheme
+echo ""
+echo "Reloading wallpaper..."
+WALLPAPER_FILE=$(caelestia wallpaper)
+caelestia wallpaper -f "$WALLPAPER_FILE"
+
+# Update cli.json posthook
+echo ""
+echo "============================================================"
+echo "                    CONFIGURING CLI"
+echo "============================================================"
+
+POSTHOOK_CMD="$POSTHOOKS_DIR/minecraft.sh"
+
+mkdir -p "$CONFIG_DIR"
+
+if [[ -f "$CLI_JSON" ]]; then
+    EXISTING_HOOK=$(jq -r '.wallpaper.postHook // empty' "$CLI_JSON" 2>/dev/null)
+
+    if [[ -n "$EXISTING_HOOK" ]]; then
+        if [[ "$EXISTING_HOOK" == *"$POSTHOOK_CMD"* ]]; then
+            echo "✓ Posthook already configured in cli.json"
+        else
+            NEW_HOOK="${EXISTING_HOOK} && ${POSTHOOK_CMD}"
+            jq --arg hook "$NEW_HOOK" '.wallpaper.postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
+            echo "✓ Added minecraft posthook to wallpaper.postHook in cli.json"
+        fi
+    else
+        jq --arg hook "$POSTHOOK_CMD" '.wallpaper.postHook = $hook' "$CLI_JSON" > "$CLI_JSON.tmp" && mv "$CLI_JSON.tmp" "$CLI_JSON"
+        echo "✓ Created wallpaper.postHook in cli.json"
+    fi
+else
+    echo "ERROR: cli.json not found at $CLI_JSON" >&2
+    exit 1
+fi
 
 echo ""
 echo "============================================================"
-echo "                         SETUP"
+echo "                         DONE"
 echo "============================================================"
-
-echo "Reloading wallpaper..."
-WALLPAPER_FILE=$(caelestia wallpaper)
-caelestia wallpaper -f $WALLPAPER_FILE
-read -p "Path to your Minecraft Catppucin resource pack: " rp_path
-chmod +x "$PROJECT_ROOT/scripts/set-rp.sh"
-"$PROJECT_ROOT/scripts/set-rp.sh" $rp_path || exit 1
-"$HOME/.local/bin/posthooks/minecraft.sh" -a
-echo "Done! Don't forget to add ~/.local/bin/posthooks/minecraft.sh to your posthook if you want to automate the process."
+echo ""
+echo "To add resource pack directories, run:"
+echo "  scripts/add-output-dir.sh <dir> [dir...]"
+echo ""
+echo "To manually trigger a recolor:"
+echo "  $POSTHOOKS_DIR/minecraft.sh"
