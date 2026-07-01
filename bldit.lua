@@ -6,8 +6,7 @@ dependencies = {}
 targets = {
     default = {
         build = function()
-            -- Nothing to build for this project
-            return true
+            return os.execute("true")
         end,
         install = function()
             -- Respect the user-defined prefix!
