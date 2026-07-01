@@ -12,13 +12,54 @@ USED_COLORS=(
 )
 
 VERBOSE=0
+ADD_DIRS=()
 
-for arg in "$@"; do
-    case "$arg" in
-        -v|--verbose) VERBOSE=1 ;;
-        *) echo "Unknown option: $arg"; exit 1 ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -v|--verbose) 
+            VERBOSE=1 
+            shift
+            ;;
+        -a|--add)
+            shift
+            while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+                ADD_DIRS+=("$1")
+                shift
+            done
+            ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
+
+if [[ ${#ADD_DIRS[@]} -gt 0 ]]; then
+    if [[ ! -d "$THEME_DIR" ]]; then
+        echo "Theme not generated yet. Trigger a recolor first." >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "$MC_DIRS_CONF")"
+    for dir in "${ADD_DIRS[@]}"; do
+        clean_path="${dir/#\~/$HOME}"
+        clean_path="${clean_path%/}"
+
+        if [[ ! -d "$clean_path" ]]; then
+            echo "Directory does not exist: $clean_path" >&2
+            continue
+        fi
+
+        if grep -Fxq "$clean_path" "$MC_DIRS_CONF" 2>/dev/null; then
+            echo "Already tracked: $clean_path"
+        else
+            echo "$clean_path" >> "$MC_DIRS_CONF"
+            echo "Added: $clean_path"
+        fi
+
+        target="$clean_path/caelestia"
+        mkdir -p "$target"
+        rsync -a --delete "$THEME_DIR/" "$target/"
+        echo "Copied theme to $target"
+    done
+    exit 0
+fi
 
 log() {
     [[ $VERBOSE -eq 1 ]] && echo "$@"

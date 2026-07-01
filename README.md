@@ -65,8 +65,8 @@ The installer will:
 ### Add resource pack directories:
 
 ```bash
-scripts/add-output-dir.sh ~/.minecraft/resourcepacks
-scripts/add-output-dir.sh ~/instances/forge/resourcepacks ~/instances/fabric/resourcepacks
+~/.local/bin/posthooks/minecraft.sh --add ~/.minecraft/resourcepacks
+~/.local/bin/posthooks/minecraft.sh --add ~/instances/forge/resourcepacks ~/instances/fabric/resourcepacks
 ```
 
 ### Manual recolor:
