@@ -26,6 +26,10 @@ while [[ $# -gt 0 ]]; do
                 ADD_DIRS+=("$1")
                 shift
             done
+            if [[ ${#ADD_DIRS[@]} -eq 0 ]]; then
+                echo "Error: --add requires at least one directory argument." >&2
+                exit 1
+            fi
             ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
