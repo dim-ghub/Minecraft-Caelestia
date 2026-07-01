@@ -8,10 +8,10 @@ end
 
 function install(prefix)
     -- Respect the user-defined prefix!
-    os.execute("PREFIX=" .. prefix .. " ./scripts/install.sh")
+    return os.execute("PREFIX=" .. prefix .. " ./scripts/install.sh")
 end
 
 function remove(prefix)
     -- Remove using the designated prefix
-    os.execute("PREFIX=" .. prefix .. " ./scripts/uninstall.sh")
+    return os.execute("PREFIX=" .. prefix .. " ./scripts/uninstall.sh")
 end
