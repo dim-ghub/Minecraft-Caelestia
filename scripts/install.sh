@@ -15,9 +15,12 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-POSTHOOKS_DIR="$HOME/.local/bin/posthooks"
-THEME_DIR="$HOME/.local/state/caelestia/theme"
-CONFIG_DIR="$HOME/.config/caelestia"
+PREFIX="${PREFIX:-$HOME/.local}"
+POSTHOOKS_DIR="$PREFIX/bin/posthooks"
+XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+THEME_DIR="$XDG_STATE_HOME/caelestia/theme"
+CONFIG_DIR="$XDG_CONFIG_HOME/caelestia"
 CLI_JSON="$CONFIG_DIR/cli.json"
 
 # --- Check for existing installation ---

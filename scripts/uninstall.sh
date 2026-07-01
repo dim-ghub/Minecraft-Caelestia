@@ -11,9 +11,12 @@ if [ $# -ne 0 ]; then
     exit 1
 fi
 
-POSTHOOKS_DIR="$HOME/.local/bin/posthooks"
-THEME_DIR="$HOME/.local/state/caelestia/theme"
-CLI_JSON="$HOME/.config/caelestia/cli.json"
+PREFIX="${PREFIX:-$HOME/.local}"
+POSTHOOKS_DIR="$PREFIX/bin/posthooks"
+XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+THEME_DIR="$XDG_STATE_HOME/caelestia/theme"
+CLI_JSON="$XDG_CONFIG_HOME/caelestia/cli.json"
 POSTHOOK_CMD="$POSTHOOKS_DIR/minecraft.sh"
 
 echo "Uninstalling..."

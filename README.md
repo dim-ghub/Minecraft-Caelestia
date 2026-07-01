@@ -8,9 +8,15 @@ It automatically downloads the Catppuccin resource pack from Modrinth and recolo
 
 ## Setup
 
-Clone this repo.
+Install using `pkgit`:
 
-Run `scripts/install.sh` and follow the instructions.
+```bash
+pkgit -i dim-ghub/Minecraft-Caelestia
+```
+or clone this repository and run:
+```bash
+pkgit -i .
+```
 
 The installer will:
 1. Download your chosen Catppuccin flavor and accent color from Modrinth
@@ -78,7 +84,7 @@ scripts/add-output-dir.sh ~/instances/forge/resourcepacks ~/instances/fabric/res
 ### Uninstall:
 
 ```bash
-scripts/uninstall.sh
+pkgit -r minecraft-caelestia
 ```
 
 ---
