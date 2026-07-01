@@ -1,4 +1,4 @@
-package_name = "minecraft-caelestia"
+package_name = "Minecraft-Caelestia"
 bldit_version = "1"
 global_dependencies = { "rsync", "python", "ydotool", "jq", "hyprctl", "curl", "unzip" }
 

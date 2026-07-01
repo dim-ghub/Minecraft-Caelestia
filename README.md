@@ -84,7 +84,7 @@ scripts/add-output-dir.sh ~/instances/forge/resourcepacks ~/instances/fabric/res
 ### Uninstall:
 
 ```bash
-pkgit -r minecraft-caelestia
+pkgit -r Minecraft-Caelestia
 ```
 
 ---
